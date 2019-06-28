@@ -1,0 +1,267 @@
+---
+title: "L4P1: Regressão com parlamentares"
+author: "Alice Fernandes Silva"
+output:
+    html_document:
+    df_print: paged
+theme: sandstone
+---
+
+```{r warning = FALSE, message = FALSE, error = FALSE, echo = FALSE}
+library(broom)
+library(here)
+library(ggbeeswarm)
+library(ggplot2)
+library(gridExtra)
+library(modelr)
+library(tidyverse)
+source(here("code/lib.R"))
+options(scipen = 999)
+theme_set(theme_bw())
+```
+
+```{r read}
+atividade = read_projectdata()
+
+atividade = atividade %>% 
+  na.omit(.) %>%
+  filter(partido != "S/ Partido") %>%
+  filter(seguidores > 0, n_proprio > 0, n_retweet > 0)  %>%
+  filter(engaj_total > 0, engaj_mediano > 0)
+
+atividade <- atividade %>% 
+  mutate(casa = if_else(casa == "senado", "Senado", "Câmara"))
+
+glimpse(atividade)
+
+```
+### 1 — Qual a relação entre as características da atuação do parlamentar e o engajamento total que ele obtém no Twitter?
+
+Por "características", queremos dizer: qual a casa (senado/câmara) do parlamentar, quantas pessoas ele segue, por quantas ele é seguido, quanto ele tuíta e quanto ele retuíta.
+
+Antes de criar o modelo iremos fazer uma análise sobre as relações lineares entre o egajamento total e cada uma das variáveis dependentes.
+
+### Engajamento Total vs Casa
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = casa, y = engaj_total)) + 
+  geom_quasirandom(size = 2, alpha = .7, colour = "orange")
+```
+
+Transformando os dados para a escala logarítmica:
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = casa, y = engaj_total)) + 
+  geom_quasirandom(size = 2, alpha = .7, colour = "orange") +
+  scale_y_log10()
+```
+
+### Engajamento Total vs Número de Perfis Seguidos
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = segue, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange")
+```
+
+Transformando os dados para a escala logarítmica:
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = segue, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+### Engajamento Total vs Número de Seguidores
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = seguidores, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange")
+```
+
+Transformando os dados para a escala logarítmica:
+
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = seguidores, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+### Engajamento Total vs Número de tweets
+
+```{r}
+atividade%>% 
+  ggplot(aes(x = n_proprio, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange")
+```
+
+Transformando os dados para a escala logarítmica:
+
+```{r}
+atividade%>% 
+  ggplot(aes(x = n_proprio, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+### Engajamento Total vs Número de retweets
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = n_retweet, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange")
+```
+
+Transformando os dados para a escala logarítmica:
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = n_retweet, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+Podemos perceber que para todas as análises foi preciso transformar os dados para escala logarítmica para que fosse possível analisar as relações lineares entre as variáveis dependentes e a independente. A seguir a variávies são transformadas para que o modelo da regressão linear múltipla seja criado. 
+
+```{r}
+atividade <- atividade %>% 
+  mutate(segue_log = log10(segue),
+         seguidores_log = log10(seguidores), 
+         n_proprio_log = log10(n_proprio),
+         n_retweet_log = log10(n_retweet),
+         engaj_total_log = log10(engaj_total))
+```
+
+
+```{r}
+modelo <- lm(engaj_total_log ~ casa + segue_log + seguidores_log + n_proprio_log + n_retweet_log,
+                   data = atividade)
+tidy(modelo)
+glance(modelo)
+```
+
+Com base nos resultados da regressão linear múltipla acima, as variáveis analisadas se relacionam através de um modelo com formato **log(Engaj_total) = - 0,06(casaSenado) - 0,29log(segue) + 0,56log(seguidores) + 0,53log(n_proprio) + 0,86log(n_retweet) + 0,53** que explica **71,11%** da variância da variável independente (R² = 0.7111606). Podemos ver que o número de retweets e de tweets próprios são os principais fatores relacionados com o engajamento total, ou seja, essa variávies tem o maior impacto sobre o valor do engajamento total dos parlamentares, sendo este impacto positivo em ambos os casos.
+
+
+### 2. Qual a relação entre as características da atuação do parlamentar e o *engajamento mediano* que ele obtém no twitter? 
+
+Por "características", queremos dizer: qual a casa (senado/câmara) do parlamentar, quantas pessoas ele segue, por quantas ele é seguido, quanto ele tuíta e quanto ele retuíta.
+
+Antes de criar o modelo iremos fazer uma análise sobre as relações lineares entre o egajamento mediano e cada uma das variáveis dependentes.
+
+### Engajamento Mediano vs Casa
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = casa, y = engaj_mediano)) + 
+  geom_quasirandom(size = 2, alpha = .7, colour = "red")
+```
+
+Transformando os dados para a escala logarítmica:
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = casa, y = engaj_mediano)) + 
+  geom_quasirandom(size = 2, alpha = .7, colour = "red") +
+  scale_y_log10()
+```
+
+###  Engajamento Mediano vs Número de Perfis Seguidos
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = segue, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red")
+```
+
+Transformando os dados para a escala logarítmica:
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = segue, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+###  Engajamento Mediano vs Número de Seguidores
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = seguidores, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red")
+```
+
+Transformando os dados para a escala logarítmica:
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = seguidores, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+###  Engajamento Mediano vs Número de tweets
+
+```{r}
+atividade%>% 
+  ggplot(aes(x = n_proprio, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red")
+```
+
+Transformando os dados para a escala logarítmica:
+
+```{r}
+atividade%>% 
+  ggplot(aes(x = n_proprio, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+###  Engajamento Mediano vs Número de retweets
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = n_retweet, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red")
+```
+
+Transformando os dados para a escala logarítmica:
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = n_retweet, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+Podemos perceber que para todas as análises foi preciso transformar os dados para escala logarítmica para que fosse possível analisar as relações lineares entre as variáveis dependentes e a independente. A seguir a variável engaj_mediano é transformada para que o modelo da regressão linear múltipla seja criado.
+
+```{r}
+atividade <- atividade %>% 
+  mutate(engaj_mediano_log = log10(engaj_mediano))
+```
+
+
+```{r}
+modelo <- lm(engaj_mediano_log ~ casa + segue_log + seguidores_log + n_proprio_log + n_retweet_log,
+                   data = atividade)
+tidy(modelo)
+glance(modelo)
+```
+
+Com base nos resultados da regressão linear múltipla acima, as variáveis analisadas se relacionam através de um modelo com formato **log(Engaj_mediano) = - 0,10log(casaSenado) - 0,34log(segue) + 0,74log(seguidores) -0,15log(n_proprio) + 0,28log(n_retweet) - 0.78** que explica **56,53%** da variância da variável independente (R² = 0.5653095).
+Podemos ver que o número de seguidores é o principal fator relacionado com o engajamento mediano, ou seja, essa variável tem o maior impacto sobre o valor do engajamento mediano dos parlamentares, sendo este impacto positivo.
