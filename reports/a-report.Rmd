@@ -1,151 +1,179 @@
 ---
-title: "REPLACE ME"
+title: "L4P1: Regressão com parlamentares"
+author: "Alice Fernandes Silva"
 output:
     html_document:
     df_print: paged
 theme: sandstone
 ---
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-library(tidyverse)
-source(here::here("code/lib.R"))
-theme_set(theme_bw())
-
-suppressWarnings(library(tidyverse))
-library(GGally)
-library(ggfortify)
+```{r warning = FALSE, message = FALSE, error = FALSE, echo = FALSE}
 library(broom)
-require(ISLR)
-library(modelr) # devtools::install_github("hadley/modelr")
-
+library(here)
+library(ggbeeswarm)
+library(ggplot2)
+library(gridExtra)
+library(modelr)
+library(tidyverse)
+source(here("code/lib.R"))
+options(scipen = 999)
+theme_set(theme_bw())
 ```
 
 ```{r read}
 atividade = read_projectdata()
-```
 
-Qual a relação entre as características da atuação do parlamentar e o engajamento total que ele obtém no twitter? 
+atividade = atividade %>% 
+  na.omit(.) %>%
+  filter(partido != "S/ Partido") %>%
+  filter(seguidores > 0, n_proprio > 0, n_retweet > 0)  %>%
+  filter(engaj_total > 0, engaj_mediano > 0)
+
+atividade <- atividade %>% 
+  mutate(casa = if_else(casa == "senado", "Senado", "Câmara"))
+
+glimpse(atividade)
+
+```
+### 1 — Qual a relação entre as características da atuação do parlamentar e o engajamento total que ele obtém no Twitter?
+
+## Realizano uma análise linear entre as variáveis
+
+### Casa do Congresso
 
 ```{r}
 atividade %>% 
-  filter(!is.na(twitter)) %>% 
-  filter(!is.na(seguidores))
+  ggplot(aes(x = casa, y = engaj_total)) + 
+  geom_quasirandom(size = 2, alpha = .7, colour = "orange") +
+  scale_y_log10()
 ```
 
-# Uma regressão linear simples 
-
-### Modelo da relação entre gasto com TV e vendas. 
-
-Linear direto com os dados.
-
-```{r}
-seguidores.model = lm(seguidores ~ engaj_total, data = atividade)
-tidy(seguidores.model)
-adv_augmented = atividade %>% 
-  add_predictions(seguidores.model) %>% 
-  add_residuals(seguidores.model)
-# Modelo x dados
-adv_augmented %>% 
-  ggplot(aes(x = seguidores)) + 
-  geom_line(aes(y = pred), size = 2, colour = "blue") + 
-  geom_point(aes(y = engaj_total))
-# Resíduos x dados
-adv_augmented %>% 
-  ggplot(aes(x = seguidores)) + 
-  geom_point(aes(y = resid), size = 2) +
-  geom_ref_line(h = 0, colour = "grey80")
-tidy(seguidores.model, conf.int = TRUE)
-glance(seguidores.model, conf.int = TRUE)
-```
-
-A função linear não se adequa lá muito bem. Outras que poderíamos usar:
-
-```{r}
-d = tibble(x = 1:100)
-d %>% 
-  ggplot(aes(x = x)) + 
-  geom_line(aes(y = log2(x)), color = "blue") + 
-  geom_line(aes(y = sqrt(x)), color = "red") 
-```
-
-## Testando Transformações
-
-`y ~ log(x)` ainda não parece linear, e tem heteroscedasticidade.
+### Número de Perfis Seguidos
 
 ```{r}
 atividade %>% 
-  mutate(seguidores = log10(seguidores)) %>% 
-  ggplot(aes(x = seguidores)) + 
-  geom_point(aes(y = engaj_total)) + 
-  ggtitle("y ~ log(x)")
+  ggplot(aes(x = segue, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange") +
+  scale_x_log10() +
+  scale_y_log10()
 ```
 
-`log(y) ~ log(x)` faz a relação se parecer muito mais com uma relação linear.
+### Número de Seguidores
+
+```{r warning = FALSE, message = FALSE, error = FALSE, fig.height = 7.5, fig.width = 7.5}
+atividade %>% 
+  ggplot(aes(x = seguidores, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+### Número de *Tweets*
+
+```{r}
+atividade%>% 
+  ggplot(aes(x = n_proprio, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+### Número de *Retweets*
 
 ```{r}
 atividade %>% 
-  mutate(engaj_total = log10(engaj_total), 
-         seguidores = log10(seguidores)) %>% 
-  ggplot(aes(x = seguidores)) + 
-  geom_point(aes(y = engaj_total)) + 
-  ggtitle("log(y) ~ log(x)")
+  ggplot(aes(x = n_retweet, y = engaj_total)) + 
+  geom_point(size = 2, alpha = .7, colour = "orange") +
+  scale_x_log10() +
+  scale_y_log10()
 ```
 
-## Usando a relação entre as variáveis transformadas para ajustar um modelo linear
+## Análises
 
 ```{r}
-advertising  = advertising %>% 
-  mutate(TV2 = log2(TV), 
-         Sales2 = log2(Sales))
-tv.model = lm(Sales2 ~ TV2, data = advertising)
+atividade <- atividade %>% 
+  mutate(segue_log = log10(segue),
+         seguidores_log = log10(seguidores), 
+         n_proprio_log = log10(n_proprio),
+         n_retweet_log = log10(n_retweet),
+         engaj_total_log = log10(engaj_total))
 ```
 
-Para visualizar o modelo, usarmeos um data frame com os dados originais e com as estimativas do modelo e resíduos para os valores nos dados. 
 
 ```{r}
-adv_augmented = advertising %>% 
-  add_predictions(tv.model) %>% 
-  add_residuals(tv.model)
+modelo <- lm(engaj_total_log ~ casa + segue_log + seguidores_log + n_proprio_log + n_retweet_log,
+                   data = atividade)
+tidy(modelo)
+glance(modelo)
 ```
 
-Visualizando. Primeiro `log(Sales) ~ log(TV)`:
+Com base nos resultados da regressão linear múltipla acima, as variáveis analisadas se relacionam através de um modelo com formato **log(ET) = - 0,66(casaSenado) - 3,85log(segue_log) + 9,95log(seguidores_log) + 5,34log(n_proprio_log) + 11,60log(n_retweet_log) + 2,08** que explica **71,61%** da variância da variável independente (R² = 0,7161578).
+
+### 2. Qual a relação entre as características da atuação do parlamentar e o *engajamento mediano* que ele obtém no twitter? 
+## Realizano uma análise linear entre as variáveis
+
+### Casa do Congresso
 
 ```{r}
-# Modelo x dados
-adv_augmented %>% 
-  ggplot(aes(x = TV2)) + 
-  geom_line(aes(y = pred), size = 2, colour = "blue") + 
-  geom_point(aes(y = Sales2))
-# Resíduos x dados
-adv_augmented %>% 
-  ggplot(aes(x = TV2)) + 
-  geom_point(aes(y = resid), size = 2) +
-  geom_ref_line(h = 0, colour = "grey80")
+atividade %>% 
+  ggplot(aes(x = casa, y = engaj_mediano)) + 
+  geom_quasirandom(size = 2, alpha = .7, colour = "red") +
+  scale_y_log10()
 ```
 
-E como é esse modelo?
+### Número de Perfis Seguidos
 
 ```{r}
-tidy(tv.model, conf.int = TRUE)
-glance(tv.model, conf.int = TRUE)
+atividade %>% 
+  ggplot(aes(x = segue, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red") +
+  scale_x_log10() +
+  scale_y_log10()
 ```
 
-O modelo é $log_2(Sales) = 1.3 + 0.35*log_2(TV)$. Isso é equivalente a $2^{log_2(Sales)} = 2^{1.3 + 0.35*log_2(TV)}$ que equivale a $Sales = 2^{1.3}*TV^{0.35}$. Testando: 
-```{r}
-## estimativa do modelo
-p = predict(tv.model, 
-            data.frame(TV2 = log2(100)))
-## Como o modelo estima log2(Sales), para ver Sales, fazemos o inverso de log2:
-paste("Estimativa do modelo:", 2**p)
+### Número de Seguidores
 
-## estimativa na mão
-paste("Estimativa da fórmula:", (2**1.3059)*100**.355)
+```{r warning = FALSE, message = FALSE, error = FALSE, fig.height = 7.5, fig.width = 7.5}
+atividade %>% 
+  ggplot(aes(x = seguidores, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red") +
+  scale_x_log10() +
+  scale_y_log10()
 ```
-Uma boa ideia é visualizar `Sales` em função de `TV`, ambas sem transformação. Repare que os ranges de TV e do eixo y estão ambos como nas variáveis originais. Estamos visualizando `2**pred` no eixo vertical para compensar o fato de que `pred`, vinda do modelo, é um valor estimado para `log2(Sales)`.
+
+### Número de *Tweets*
+
 ```{r}
-adv_augmented %>% 
-  ggplot(aes(x = TV)) + 
-  geom_line(aes(y = 2**(pred)), size = 2, colour = "blue") + 
-  geom_point(aes(y = Sales)) + 
-  ylab("Sales")
+atividade%>% 
+  ggplot(aes(x = n_proprio, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red") +
+  scale_x_log10() +
+  scale_y_log10()
 ```
+
+### Número de *Retweets*
+
+```{r}
+atividade %>% 
+  ggplot(aes(x = n_retweet, y = engaj_mediano)) + 
+  geom_point(size = 2, alpha = .7, colour = "red") +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+## Análises
+
+```{r}
+atividade <- atividade %>% 
+  mutate(engaj_mediano_log = log10(engaj_mediano))
+```
+
+
+```{r}
+modelo <- lm(engaj_mediano_log ~ casa + segue_log + seguidores_log + n_proprio_log + n_retweet_log,
+                   data = atividade)
+tidy(modelo)
+glance(modelo)
+```
+
+Com base nos resultados da regressão linear múltipla acima, as variáveis analisadas se relacionam através de um modelo com formato **engaj_mediano_log = - 1.24(casaSenado) - 5.57(segue_log) + 16.10(seguidores_log) -1.83(n_proprio_log) + 4,66(n_retweet_log) -3.79** que explica **57,28%** da variância da variável independente (R² = 0.5728301).
